@@ -177,6 +177,11 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
             paired.transfer(address(treasury), remainPaired);
             console.log('transfer remainPaired %s to treasury', remainPaired);
         } else {
+            // R = reserve USDC / reserve MAI
+            // payback = mai + usdc = mai + mai*R = mai*(1+R)
+            // mai = payback / (1+R) = (lp balance / lp total) * reserve MAI * 2
+            // lp balance = (payback * lp total) / (2*((1+R)) * reserve MAI)
+            //            = (payback * lp total) / (2*(reserve MAI + reserve USDC))
             (uint256 reservePaired, uint256 reserveLoan, ) = investment.getReserves();
             uint256 amount = lb.sub(lbTarget);
             console.log('should payback %s', amount);
