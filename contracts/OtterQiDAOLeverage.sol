@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity 0.7.5;
 
-import 'hardhat/console.sol';
+// import 'hardhat/console.sol';
 
 import './types/Ownable.sol';
 import './types/ContractOwner.sol';
@@ -130,7 +130,7 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
     }
 
     function _borrow(uint256 vaultID, uint256 amount) private {
-        console.log('should borrow %s', amount);
+        // console.log('should borrow %s', amount);
         vault.borrowToken(vaultID, amount);
         uint256 amountHalf = amount.div(2);
         // MAI -> USDC
@@ -142,10 +142,10 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
             amountHalf,
             0
         );
-        console.log('exchange %s, paired %s', amountHalf, amountPaired);
+        // console.log('exchange %s, paired %s', amountHalf, amountPaired);
         mai.approve(address(router), amountHalf);
         paired.approve(address(router), amountPaired);
-        (uint256 providedMai, uint256 providedPaired, uint256 amountTarget) = router.addLiquidity(
+        (, , uint256 amountTarget) = router.addLiquidity(
             address(mai),
             address(paired),
             amountHalf,
@@ -155,14 +155,14 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
             address(treasury),
             block.timestamp
         );
-        console.log('addLiquidity %s, %s, got %s', providedMai, providedPaired, amountTarget);
+        // console.log('addLiquidity %s, %s, got %s', amountHalf, amountPaired, amountTarget);
         investment.stake(investmentPid, amountTarget);
         uint256 remainMai = mai.balanceOf(address(this));
         mai.transfer(address(treasury), remainMai);
-        console.log('transfer remainMai %s to treasury', remainMai);
+        // console.log('transfer remainMai %s to treasury', remainMai);
         uint256 remainPaired = paired.balanceOf(address(this));
         paired.transfer(address(treasury), remainPaired);
-        console.log('transfer remainPaired %s to treasury', remainPaired);
+        // console.log('transfer remainPaired %s to treasury', remainPaired);
     }
 
     function _repay(uint256 vaultID, uint256 amount) private {
@@ -172,12 +172,12 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
         // lp balance = (payback * lp total) / (2*((1+R)) * reserve MAI)
         //            = (payback * lp total) / (2*(reserve MAI + reserve USDC))
         (uint256 reservePaired, uint256 reserveMai, ) = investment.getReserves();
-        console.log('should payback %s', amount);
+        // console.log('should payback %s', amount);
         uint256 amountLP = amount.mul(investment.totalSupply()).div(reserveMai.add(reservePaired)).div(2);
-        console.log('should unstak %s LP', amountLP);
+        // console.log('should unstak %s LP', amountLP);
         uint256 balanceLP = IERC20(address(investment)).balanceOf(address(treasury));
         if (amountLP > balanceLP) {
-            console.log('not enough LP, max %s', balanceLP);
+            // console.log('not enough LP, max %s', balanceLP);
             amountLP = balanceLP;
         }
         investment.unstake(investmentPid, amountLP);
@@ -193,7 +193,7 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
             address(this),
             block.timestamp
         );
-        console.log('removeLiquidity %s, got mai %s, paired %s', amountLP, amountMai, amountPaired);
+        // console.log('removeLiquidity %s, got mai %s, paired %s', amountLP, amountMai, amountPaired);
         paired.approve(address(curveZapDepositor), amountPaired);
         uint256 amountMaiExchanged = curveZapDepositor.exchange_underlying(
             curvePool,
@@ -202,18 +202,18 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
             amountPaired,
             0
         );
-        console.log('exchange paired %s to mai %s', amountPaired, amountMaiExchanged);
+        // console.log('exchange paired %s to mai %s', amountPaired, amountMaiExchanged);
         uint256 amountMaiPayback = amountMai.add(amountMaiExchanged);
-        console.log('actual payback %s', amountMaiPayback);
+        // console.log('actual payback %s', amountMaiPayback);
         mai.approve(address(vault), amountMaiPayback);
         vault.payBackToken(vaultID, amountMaiPayback);
 
         uint256 remainMai = mai.balanceOf(address(this));
         mai.transfer(address(treasury), remainMai);
-        console.log('transfer remainMai %s to treasury', remainMai);
+        // console.log('transfer remainMai %s to treasury', remainMai);
         uint256 remainPaired = paired.balanceOf(address(this));
         paired.transfer(address(treasury), remainPaired);
-        console.log('transfer remainPaired %s to treasury', remainPaired);
+        // console.log('transfer remainPaired %s to treasury', remainPaired);
     }
 
     function rebalance(uint256 vaultID, uint16 ratio) external onlyOwner {
