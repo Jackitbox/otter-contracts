@@ -129,6 +129,97 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
         treasury.deposit(amount_, address(collateral), profit);
     }
 
+    function _borrow(uint256 vaultID, uint256 amount) private {
+        console.log('should borrow %s', amount);
+        vault.borrowToken(vaultID, amount);
+        uint256 amountHalf = amount.div(2);
+        // MAI -> USDC
+        loan.approve(address(curveZapDepositor), amountHalf);
+        uint256 amountPaired = curveZapDepositor.exchange_underlying(
+            curvePool,
+            curveLoanIndex,
+            curvePairedIndex,
+            amountHalf,
+            0
+        );
+        console.log('exchange %s, paired %s', amountHalf, amountPaired);
+        loan.approve(address(router), amountHalf);
+        paired.approve(address(router), amountPaired);
+        (uint256 providedLoan, uint256 providedPaired, uint256 amountTarget) = router.addLiquidity(
+            address(loan),
+            address(paired),
+            amountHalf,
+            amountPaired,
+            1,
+            1,
+            address(treasury),
+            block.timestamp
+        );
+        console.log('addLiquidity %s, %s, got %s', providedLoan, providedPaired, amountTarget);
+        investment.stake(investmentPid, amountTarget);
+        uint256 remainLoan = loan.balanceOf(address(this));
+        loan.approve(address(treasury), remainLoan);
+        loan.transfer(address(treasury), remainLoan);
+        console.log('transfer remainLoan %s to treasury', remainLoan);
+        uint256 remainPaired = paired.balanceOf(address(this));
+        paired.approve(address(treasury), remainPaired);
+        paired.transfer(address(treasury), remainPaired);
+        console.log('transfer remainPaired %s to treasury', remainPaired);
+    }
+
+    function _repay(uint256 vaultID, uint256 amount) private {
+        // R = reserve USDC / reserve MAI
+        // payback = mai + usdc = mai + mai*R = mai*(1+R)
+        // mai = payback / (1+R) = (lp balance / lp total) * reserve MAI * 2
+        // lp balance = (payback * lp total) / (2*((1+R)) * reserve MAI)
+        //            = (payback * lp total) / (2*(reserve MAI + reserve USDC))
+        (uint256 reservePaired, uint256 reserveLoan, ) = investment.getReserves();
+        console.log('should payback %s', amount);
+        uint256 amountLP = amount.mul(investment.totalSupply()).div(reserveLoan.add(reservePaired)).div(2);
+        console.log('should unstak %s LP', amountLP);
+        uint256 balanceLP = IERC20(address(investment)).balanceOf(address(treasury));
+        if (amountLP > balanceLP) {
+            console.log('not enough LP, max %s', balanceLP);
+            amountLP = balanceLP;
+        }
+        investment.unstake(investmentPid, amountLP);
+        treasury.manage(address(target), amountLP);
+
+        target.approve(address(router), amountLP);
+        (uint256 amountLoan, uint256 amountPaired) = router.removeLiquidity(
+            address(loan),
+            address(paired),
+            amountLP,
+            1,
+            1,
+            address(this),
+            block.timestamp
+        );
+        console.log('removeLiquidity %s, got loan %s, paired %s', amountLP, amountLoan, amountPaired);
+        paired.approve(address(curveZapDepositor), amountPaired);
+        uint256 amountLoanExchanged = curveZapDepositor.exchange_underlying(
+            curvePool,
+            curvePairedIndex,
+            curveLoanIndex,
+            amountPaired,
+            0
+        );
+        console.log('exchange paired %s to loan %s', amountPaired, amountLoanExchanged);
+        uint256 amountLoanPayback = amountLoan.add(amountLoanExchanged);
+        console.log('actual payback %s', amountLoanPayback);
+        loan.approve(address(vault), amountLoanPayback);
+        vault.payBackToken(vaultID, amountLoanPayback);
+
+        uint256 remainLoan = loan.balanceOf(address(this));
+        loan.approve(address(treasury), remainLoan);
+        loan.transfer(address(treasury), remainLoan);
+        console.log('transfer remainLoan %s to treasury', remainLoan);
+        uint256 remainPaired = paired.balanceOf(address(this));
+        paired.approve(address(treasury), remainPaired);
+        paired.transfer(address(treasury), remainPaired);
+        console.log('transfer remainPaired %s to treasury', remainPaired);
+    }
+
     function rebalance(uint256 vaultID, uint16 ratio) external onlyOwner {
         require(
             ratio > vault._minimumCollateralPercentage(),
@@ -140,94 +231,9 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
         uint256 lb = _calcLoanBalance(loanValue(vaultID));
         uint256 lbTarget = _calcLoanBalance(cv.mul(100).div(ratio));
         if (lbTarget > lb) {
-            uint256 amount = lbTarget.sub(lb);
-            console.log('should borrow %s', amount);
-            vault.borrowToken(vaultID, amount);
-            uint256 amountHalf = amount.div(2);
-            // MAI -> USDC
-            loan.approve(address(curveZapDepositor), amountHalf);
-            uint256 amountPaired = curveZapDepositor.exchange_underlying(
-                curvePool,
-                curveLoanIndex,
-                curvePairedIndex,
-                amountHalf,
-                0
-            );
-            console.log('exchange %s, paired %s', amountHalf, amountPaired);
-            loan.approve(address(router), amountHalf);
-            paired.approve(address(router), amountPaired);
-            (uint256 providedLoan, uint256 providedPaired, uint256 amountTarget) = router.addLiquidity(
-                address(loan),
-                address(paired),
-                amountHalf,
-                amountPaired,
-                1,
-                1,
-                address(treasury),
-                block.timestamp
-            );
-            console.log('addLiquidity %s, %s, got %s', providedLoan, providedPaired, amountTarget);
-            investment.stake(investmentPid, amountTarget);
-            uint256 remainLoan = loan.balanceOf(address(this));
-            loan.approve(address(treasury), remainLoan);
-            loan.transfer(address(treasury), remainLoan);
-            console.log('transfer remainLoan %s to treasury', remainLoan);
-            uint256 remainPaired = paired.balanceOf(address(this));
-            paired.approve(address(treasury), remainPaired);
-            paired.transfer(address(treasury), remainPaired);
-            console.log('transfer remainPaired %s to treasury', remainPaired);
+            _borrow(vaultID, lbTarget.sub(lb));
         } else {
-            // R = reserve USDC / reserve MAI
-            // payback = mai + usdc = mai + mai*R = mai*(1+R)
-            // mai = payback / (1+R) = (lp balance / lp total) * reserve MAI * 2
-            // lp balance = (payback * lp total) / (2*((1+R)) * reserve MAI)
-            //            = (payback * lp total) / (2*(reserve MAI + reserve USDC))
-            (uint256 reservePaired, uint256 reserveLoan, ) = investment.getReserves();
-            uint256 amount = lb.sub(lbTarget);
-            console.log('should payback %s', amount);
-            uint256 amountLP = amount.mul(investment.totalSupply()).div(reserveLoan.add(reservePaired)).div(2);
-            console.log('should unstak %s LP', amountLP);
-            uint256 balanceLP = IERC20(address(investment)).balanceOf(address(treasury));
-            if (amountLP > balanceLP) {
-                console.log('not enough LP, max %s', balanceLP);
-                amountLP = balanceLP;
-            }
-            investment.unstake(investmentPid, amountLP);
-            treasury.manage(address(target), amountLP);
-
-            target.approve(address(router), amountLP);
-            (uint256 amountLoan, uint256 amountPaired) = router.removeLiquidity(
-                address(loan),
-                address(paired),
-                amountLP,
-                1,
-                1,
-                address(this),
-                block.timestamp
-            );
-            console.log('removeLiquidity %s, got loan %s, paired %s', amountLP, amountLoan, amountPaired);
-            paired.approve(address(curveZapDepositor), amountPaired);
-            uint256 amountLoanExchanged = curveZapDepositor.exchange_underlying(
-                curvePool,
-                curvePairedIndex,
-                curveLoanIndex,
-                amountPaired,
-                0
-            );
-            console.log('exchange paired %s to loan %s', amountPaired, amountLoanExchanged);
-            uint256 amountLoanPayback = amountLoan.add(amountLoanExchanged);
-            console.log('actual payback %s', amountLoanPayback);
-            loan.approve(address(vault), amountLoanPayback);
-            vault.payBackToken(vaultID, amountLoanPayback);
-
-            uint256 remainLoan = loan.balanceOf(address(this));
-            loan.approve(address(treasury), remainLoan);
-            loan.transfer(address(treasury), remainLoan);
-            console.log('transfer remainLoan %s to treasury', remainLoan);
-            uint256 remainPaired = paired.balanceOf(address(this));
-            paired.approve(address(treasury), remainPaired);
-            paired.transfer(address(treasury), remainPaired);
-            console.log('transfer remainPaired %s to treasury', remainPaired);
+            _repay(vaultID, lb.sub(lbTarget));
         }
     }
 
