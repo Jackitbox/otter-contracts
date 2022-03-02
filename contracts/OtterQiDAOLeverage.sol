@@ -158,11 +158,9 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
         console.log('addLiquidity %s, %s, got %s', providedMai, providedPaired, amountTarget);
         investment.stake(investmentPid, amountTarget);
         uint256 remainMai = mai.balanceOf(address(this));
-        mai.approve(address(treasury), remainMai);
         mai.transfer(address(treasury), remainMai);
         console.log('transfer remainMai %s to treasury', remainMai);
         uint256 remainPaired = paired.balanceOf(address(this));
-        paired.approve(address(treasury), remainPaired);
         paired.transfer(address(treasury), remainPaired);
         console.log('transfer remainPaired %s to treasury', remainPaired);
     }
@@ -211,11 +209,9 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
         vault.payBackToken(vaultID, amountMaiPayback);
 
         uint256 remainMai = mai.balanceOf(address(this));
-        mai.approve(address(treasury), remainMai);
         mai.transfer(address(treasury), remainMai);
         console.log('transfer remainMai %s to treasury', remainMai);
         uint256 remainPaired = paired.balanceOf(address(this));
-        paired.approve(address(treasury), remainPaired);
         paired.transfer(address(treasury), remainPaired);
         console.log('transfer remainPaired %s to treasury', remainPaired);
     }
@@ -273,7 +269,6 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
 
     function emergencyWithdraw(address token_) external onlyOwner {
         uint256 balance = IERC20(token_).balanceOf(address(this));
-        IERC20(token_).approve(dao, balance);
         IERC20(token_).transfer(dao, balance);
     }
 }
