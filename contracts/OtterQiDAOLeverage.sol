@@ -225,7 +225,9 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
             ratio > vault._minimumCollateralPercentage(),
             'ratio must be greater than the minimum collateral percentage'
         );
-        require(ratio != vault.checkCollateralPercentage(vaultID), 'ratio is the same');
+        if (ratio == vault.checkCollateralPercentage(vaultID)) {
+            return;
+        }
 
         uint256 cv = collateralValue(vaultID);
         uint256 lb = _calcLoanBalance(loanValue(vaultID));
