@@ -68,14 +68,14 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
 
     CurveZapDepositor public immutable curveZapDepositor;
     address public immutable curvePool;
-    int128 public immutable curveLoanIndex;
+    int128 public immutable curveMaiIndex;
     int128 public immutable curvePairedIndex;
     IUniswapV2Router02 public immutable router;
 
     IVault public immutable vault;
     IOtterTreasury public immutable treasury;
     IERC20 public immutable collateral; // dQUICK
-    IERC20 public immutable loan; // MAI
+    IERC20 public immutable mai; // MAI
     IERC20 public immutable paired; // USDC
     IERC20 public immutable target; // USDC/MAI LP
     address public immutable dao;
@@ -85,12 +85,12 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
         uint256 investmentPid_,
         address curveZapDepositor_,
         address curvePool_,
-        int128 curveLoanIndex_,
+        int128 curveMaiIndex_,
         int128 curvePairedIndex_,
         address router_,
         address vault_,
         address collateral_, // dQUICK
-        address loan_, // MAI
+        address mai_, // MAI
         address paired_, // USDC
         address treasury_,
         address dao_ // for emergency
@@ -99,16 +99,16 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
         investmentPid = investmentPid_;
         curveZapDepositor = CurveZapDepositor(curveZapDepositor_);
         curvePool = curvePool_;
-        curveLoanIndex = curveLoanIndex_;
+        curveMaiIndex = curveMaiIndex_;
         curvePairedIndex = curvePairedIndex_;
         router = IUniswapV2Router02(router_);
         vault = IVault(vault_);
         collateral = IERC20(collateral_);
-        loan = IERC20(loan_);
+        mai = IERC20(mai_);
         paired = IERC20(paired_);
         treasury = IOtterTreasury(treasury_);
         dao = dao_;
-        target = IERC20(IUniswapV2Factory(IUniswapV2Router02(router_).factory()).getPair(loan_, paired_));
+        target = IERC20(IUniswapV2Factory(IUniswapV2Router02(router_).factory()).getPair(mai_, paired_));
     }
 
     function createVault() external onlyOwner {
@@ -134,19 +134,19 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
         vault.borrowToken(vaultID, amount);
         uint256 amountHalf = amount.div(2);
         // MAI -> USDC
-        loan.approve(address(curveZapDepositor), amountHalf);
+        mai.approve(address(curveZapDepositor), amountHalf);
         uint256 amountPaired = curveZapDepositor.exchange_underlying(
             curvePool,
-            curveLoanIndex,
+            curveMaiIndex,
             curvePairedIndex,
             amountHalf,
             0
         );
         console.log('exchange %s, paired %s', amountHalf, amountPaired);
-        loan.approve(address(router), amountHalf);
+        mai.approve(address(router), amountHalf);
         paired.approve(address(router), amountPaired);
-        (uint256 providedLoan, uint256 providedPaired, uint256 amountTarget) = router.addLiquidity(
-            address(loan),
+        (uint256 providedMai, uint256 providedPaired, uint256 amountTarget) = router.addLiquidity(
+            address(mai),
             address(paired),
             amountHalf,
             amountPaired,
@@ -155,12 +155,12 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
             address(treasury),
             block.timestamp
         );
-        console.log('addLiquidity %s, %s, got %s', providedLoan, providedPaired, amountTarget);
+        console.log('addLiquidity %s, %s, got %s', providedMai, providedPaired, amountTarget);
         investment.stake(investmentPid, amountTarget);
-        uint256 remainLoan = loan.balanceOf(address(this));
-        loan.approve(address(treasury), remainLoan);
-        loan.transfer(address(treasury), remainLoan);
-        console.log('transfer remainLoan %s to treasury', remainLoan);
+        uint256 remainMai = mai.balanceOf(address(this));
+        mai.approve(address(treasury), remainMai);
+        mai.transfer(address(treasury), remainMai);
+        console.log('transfer remainMai %s to treasury', remainMai);
         uint256 remainPaired = paired.balanceOf(address(this));
         paired.approve(address(treasury), remainPaired);
         paired.transfer(address(treasury), remainPaired);
@@ -173,9 +173,9 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
         // mai = payback / (1+R) = (lp balance / lp total) * reserve MAI * 2
         // lp balance = (payback * lp total) / (2*((1+R)) * reserve MAI)
         //            = (payback * lp total) / (2*(reserve MAI + reserve USDC))
-        (uint256 reservePaired, uint256 reserveLoan, ) = investment.getReserves();
+        (uint256 reservePaired, uint256 reserveMai, ) = investment.getReserves();
         console.log('should payback %s', amount);
-        uint256 amountLP = amount.mul(investment.totalSupply()).div(reserveLoan.add(reservePaired)).div(2);
+        uint256 amountLP = amount.mul(investment.totalSupply()).div(reserveMai.add(reservePaired)).div(2);
         console.log('should unstak %s LP', amountLP);
         uint256 balanceLP = IERC20(address(investment)).balanceOf(address(treasury));
         if (amountLP > balanceLP) {
@@ -186,8 +186,8 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
         treasury.manage(address(target), amountLP);
 
         target.approve(address(router), amountLP);
-        (uint256 amountLoan, uint256 amountPaired) = router.removeLiquidity(
-            address(loan),
+        (uint256 amountMai, uint256 amountPaired) = router.removeLiquidity(
+            address(mai),
             address(paired),
             amountLP,
             1,
@@ -195,25 +195,25 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
             address(this),
             block.timestamp
         );
-        console.log('removeLiquidity %s, got loan %s, paired %s', amountLP, amountLoan, amountPaired);
+        console.log('removeLiquidity %s, got mai %s, paired %s', amountLP, amountMai, amountPaired);
         paired.approve(address(curveZapDepositor), amountPaired);
-        uint256 amountLoanExchanged = curveZapDepositor.exchange_underlying(
+        uint256 amountMaiExchanged = curveZapDepositor.exchange_underlying(
             curvePool,
             curvePairedIndex,
-            curveLoanIndex,
+            curveMaiIndex,
             amountPaired,
             0
         );
-        console.log('exchange paired %s to loan %s', amountPaired, amountLoanExchanged);
-        uint256 amountLoanPayback = amountLoan.add(amountLoanExchanged);
-        console.log('actual payback %s', amountLoanPayback);
-        loan.approve(address(vault), amountLoanPayback);
-        vault.payBackToken(vaultID, amountLoanPayback);
+        console.log('exchange paired %s to mai %s', amountPaired, amountMaiExchanged);
+        uint256 amountMaiPayback = amountMai.add(amountMaiExchanged);
+        console.log('actual payback %s', amountMaiPayback);
+        mai.approve(address(vault), amountMaiPayback);
+        vault.payBackToken(vaultID, amountMaiPayback);
 
-        uint256 remainLoan = loan.balanceOf(address(this));
-        loan.approve(address(treasury), remainLoan);
-        loan.transfer(address(treasury), remainLoan);
-        console.log('transfer remainLoan %s to treasury', remainLoan);
+        uint256 remainMai = mai.balanceOf(address(this));
+        mai.approve(address(treasury), remainMai);
+        mai.transfer(address(treasury), remainMai);
+        console.log('transfer remainMai %s to treasury', remainMai);
         uint256 remainPaired = paired.balanceOf(address(this));
         paired.approve(address(treasury), remainPaired);
         paired.transfer(address(treasury), remainPaired);
