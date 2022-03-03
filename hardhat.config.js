@@ -1,6 +1,8 @@
 require('@nomiclabs/hardhat-waffle')
-require('@atixlabs/hardhat-time-n-mine')
 require('@nomiclabs/hardhat-etherscan')
+require('@atixlabs/hardhat-time-n-mine')
+require('@openzeppelin/hardhat-upgrades')
+
 require('dotenv').config()
 
 const { ethers } = require('ethers')
@@ -17,7 +19,7 @@ module.exports = {
   solidity: {
     compilers: [
       {
-        version: '0.8.4',
+        version: '0.8.9',
       },
       {
         version: '0.7.5',
@@ -35,7 +37,7 @@ module.exports = {
   },
   networks: {
     'polygon-mainnet': {
-      url: 'https://polygon-rpc.com',
+      url: polygonMainnetRPC,
       accounts: deployer ? [deployer] : deployer,
       gasPrice: ethers.utils.parseUnits('50', 'gwei').toNumber(),
     },
