@@ -5,6 +5,7 @@ pragma solidity 0.7.5;
 
 import './types/Ownable.sol';
 import './types/ContractOwner.sol';
+import './types/AccessControl.sol';
 
 import './interfaces/IOtterTreasury.sol';
 import './interfaces/IProxyUniswapV2Pair.sol';
@@ -60,7 +61,33 @@ interface CurveZapDepositor {
     ) external returns (uint256);
 }
 
-contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
+abstract contract Controlled is AccessControl {
+    bytes32 public constant OPERATOR_ROLE = keccak256('OPERATOR_ROLE');
+
+    constructor() {
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    modifier onlyAdmin() {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), 'caller is not admin');
+        _;
+    }
+
+    modifier onlyOperator() {
+        require(hasRole(OPERATOR_ROLE, msg.sender), 'caller is not operator');
+        _;
+    }
+
+    function grantOperator(address operator_) external {
+        grantRole(OPERATOR_ROLE, operator_);
+    }
+
+    function revokeOperator(address operator_) external {
+        revokeRole(OPERATOR_ROLE, operator_);
+    }
+}
+
+contract OtterQiDAOLeverage is Controlled, ContractOwner, ERC721Holder {
     using SafeMath for uint256;
 
     IQiDAOInvestment public immutable investment;
@@ -111,17 +138,17 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
         target = IERC20(IUniswapV2Factory(IUniswapV2Router02(router_).factory()).getPair(mai_, paired_));
     }
 
-    function createVault() external onlyOwner {
+    function createVault() external onlyAdmin {
         vault.createVault();
     }
 
-    function depositCollateral(uint256 vaultID, uint256 amount_) external onlyOwner {
+    function depositCollateral(uint256 vaultID, uint256 amount_) external onlyAdmin {
         treasury.manage(address(collateral), amount_);
         collateral.approve(address(vault), amount_);
         vault.depositCollateral(vaultID, amount_);
     }
 
-    function withdrawCollateral(uint256 vaultID, uint256 amount_) external onlyOwner {
+    function withdrawCollateral(uint256 vaultID, uint256 amount_) external onlyAdmin {
         vault.withdrawCollateral(vaultID, amount_);
         uint256 balance = collateral.balanceOf(address(this));
         collateral.approve(address(treasury), balance);
@@ -216,7 +243,7 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
         // console.log('transfer remainPaired %s to treasury', remainPaired);
     }
 
-    function rebalance(uint256 vaultID, uint16 ratio) external onlyOwner {
+    function rebalance(uint256 vaultID, uint16 ratio) external onlyOperator {
         require(
             ratio > vault._minimumCollateralPercentage(),
             'ratio must be greater than the minimum collateral percentage'
@@ -267,7 +294,7 @@ contract OtterQiDAOLeverage is Ownable, ContractOwner, ERC721Holder {
         return _calcCollateralValue(vault.vaultCollateral(vaultID));
     }
 
-    function emergencyWithdraw(address token_) external onlyOwner {
+    function emergencyWithdraw(address token_) external onlyAdmin {
         uint256 balance = IERC20(token_).balanceOf(address(this));
         IERC20(token_).transfer(dao, balance);
     }

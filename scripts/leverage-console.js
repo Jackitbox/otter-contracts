@@ -57,6 +57,7 @@ const leverage = await LEVERAGE.deploy(
   treasuryAddress,
   daoAddress
 )
+await (await leverage.grantOperator(deployer.address)).wait()
 await (await investment.connect(king).pushManagement(leverage.address)).wait()
 await (await leverage.pullContractManagement(investment.address)).wait()
 
@@ -93,4 +94,8 @@ await (await leverage.depositCollateral(vaultID, ethers.utils.parseEther('0.1'))
 await (await leverage.rebalance(vaultID, 300)).wait()
 await leverage.collateralPercentage(vaultID)
 await (await leverage.rebalance(vaultID, 310)).wait()
+
 await leverage.collateralPercentage(vaultID)
+
+await (await leverage.pushContractManagement(investment.address, king.address)).wait()
+await (await investment.connect(king).pullManagement()).wait()
