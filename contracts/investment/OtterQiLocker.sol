@@ -16,7 +16,7 @@ interface ISmartVault is IERC20 {
 }
 
 contract OtterQiLocker is LockerOwnedUpgradeable, UUPSUpgradeable {
-    event Lock(uint256 amount, uint256 blockNumber);
+    event Lock(uint256 amount, uint256 maxLock);
     event Leave(uint256 amount);
     event Harvest(uint256 amount);
     event ConvertToQi(address token, uint256 amountIn, uint256 amountOut);
@@ -26,6 +26,7 @@ contract OtterQiLocker is LockerOwnedUpgradeable, UUPSUpgradeable {
     IOtterClamQi public ocQi;
     IOtterTreasury public treasury;
     address public dao;
+    uint256 _maxLock; 
 
     function initialize(
         address qi_,
@@ -38,16 +39,17 @@ contract OtterQiLocker is LockerOwnedUpgradeable, UUPSUpgradeable {
         ocQi = IOtterClamQi(ocQi_);
         treasury = IOtterTreasury(treasury_);
         dao = dao_;
+        _maxLock = 60108430;
     }
 
     /// @notice Lock Qi to QiDAO and mint ocQi to treasury
     /// @param amount_ the amount of qi
-    /// @param blockNumber_ the block number going to locked
-    function lock(uint256 amount_, uint256 blockNumber_) public onlyLocker {
+    /// @param blockNumber_ the block number going to locked -> no need
+    function lock(uint256 amount_) public onlyLocker {
         treasury.manage(address(qi), amount_);
         qi.approve(address(ocQi), amount_);
-        ocQi.lock(address(treasury), amount_, blockNumber_);
-        emit Lock(amount_, blockNumber_);
+        ocQi.lock(address(treasury), amount_, _maxLock);
+        emit Lock(amount_, _maxLock);
     }
 
     /// @notice Unlock Qi from QiDAO and burn ocQi
@@ -65,7 +67,7 @@ contract OtterQiLocker is LockerOwnedUpgradeable, UUPSUpgradeable {
     function harvest(uint256 blockNumber_) external onlyLocker {
         uint256 rewards = ocQi.collectReward(address(treasury));
         if (blockNumber_ > 0) {
-            lock(rewards, blockNumber_);
+            lock(rewards);
         }
         emit Harvest(rewards);
     }
