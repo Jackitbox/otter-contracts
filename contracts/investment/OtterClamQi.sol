@@ -8,6 +8,8 @@ import '@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol';
 import '../interfaces/IDelegation.sol';
 import '../interfaces/IOtterClamQi.sol';
 import '../interfaces/IERC20.sol';
+import '../interfaces/IEQi.sol';
+
 
 abstract contract LockerOwned is OwnableUpgradeable {
     event ToggleLocker(address indexed locker, bool toggle);
@@ -26,6 +28,7 @@ abstract contract LockerOwned is OwnableUpgradeable {
     }
 }
 
+<<<<<<< HEAD
 interface EQi {
     function userInfo(address user)
         external
@@ -45,6 +48,8 @@ interface EQi {
     function emergencyExit() external;
 }
 
+=======
+>>>>>>> 4bab7d7 (auto-locker add interface)
 contract OtterClamQi is
     IOtterClamQi,
     ERC20Upgradeable,

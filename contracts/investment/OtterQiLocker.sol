@@ -8,6 +8,7 @@ import '@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol';
 import '../interfaces/IOtterTreasury.sol';
 import '../interfaces/IERC20.sol';
 import '../interfaces/IOtterClamQi.sol';
+import '../interfaces/IEQi.sol';
 
 import '../types/LockerOwnedUpgradeable.sol';
 
@@ -16,17 +17,17 @@ interface ISmartVault is IERC20 {
 }
 
 contract OtterQiLocker is LockerOwnedUpgradeable, UUPSUpgradeable {
-    event Lock(uint256 amount, uint256 maxLock);
+    event Lock(uint256 amount, uint256 blockNumber);
     event Leave(uint256 amount);
     event Harvest(uint256 amount);
     event ConvertToQi(address token, uint256 amountIn, uint256 amountOut);
     event ConvertToTetuQi(address token, uint256 amountIn, uint256 amountOut);
 
     IERC20 public qi;
+    EQi public eQi;
     IOtterClamQi public ocQi;
     IOtterTreasury public treasury;
     address public dao;
-    uint256 _maxLock; 
 
     function initialize(
         address qi_,
@@ -39,17 +40,25 @@ contract OtterQiLocker is LockerOwnedUpgradeable, UUPSUpgradeable {
         ocQi = IOtterClamQi(ocQi_);
         treasury = IOtterTreasury(treasury_);
         dao = dao_;
-        _maxLock = 60108430;
     }
+
+    IEQi public constant eQi = IEQi(0x880DeCADe22aD9c58A8A4202EF143c4F305100B3);
 
     /// @notice Lock Qi to QiDAO and mint ocQi to treasury
     /// @param amount_ the amount of qi
-    /// @param blockNumber_ the block number going to locked -> no need
     function lock(uint256 amount_) public onlyLocker {
         treasury.manage(address(qi), amount_);
         qi.approve(address(ocQi), amount_);
-        ocQi.lock(address(treasury), amount_, _maxLock);
-        emit Lock(amount_, _maxLock);
+        uint256 endBlock = eQi.userInfo(address(ocQi)).endBlock;
+        uint256 maxLock = ocQi.maxLock();  // 4 years
+        uint256 diffBlock = 0;
+        if (endBlock == 0) {
+            diffBlock = maxLock;
+        } else if (endBlock < (block.number + maxLock)) {
+            diffBlock = (block.number + maxLock) - endBlock;
+        }
+        ocQi.lock(address(treasury), amount_, diffBlock);
+        emit Lock(amount_, diffBlock);
     }
 
     /// @notice Unlock Qi from QiDAO and burn ocQi
@@ -64,9 +73,9 @@ contract OtterQiLocker is LockerOwnedUpgradeable, UUPSUpgradeable {
 
     /// @notice Harvest reward from QiDAO
     /// @param blockNumber_ the block number going to locked, if = 0, no lock
-    function harvest(uint256 blockNumber_) external onlyLocker {
+    function harvest(bool relock_) external onlyLocker {
         uint256 rewards = ocQi.collectReward(address(treasury));
-        if (blockNumber_ > 0) {
+        if (relock_) {
             lock(rewards);
         }
         emit Harvest(rewards);
