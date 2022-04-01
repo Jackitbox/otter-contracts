@@ -28,28 +28,6 @@ abstract contract LockerOwned is OwnableUpgradeable {
     }
 }
 
-<<<<<<< HEAD
-interface EQi {
-    function userInfo(address user)
-        external
-        view
-        returns (uint256 amount, uint256 endBlock);
-
-    function enter(uint256 _amount, uint256 _blockNumber) external;
-
-    function leave() external;
-
-    function endBlock() external view returns (uint256);
-
-    function balanceOf(address user) external view returns (uint256);
-
-    function underlyingBalance(address user) external view returns (uint256);
-
-    function emergencyExit() external;
-}
-
-=======
->>>>>>> 4bab7d7 (auto-locker add interface)
 contract OtterClamQi is
     IOtterClamQi,
     ERC20Upgradeable,
