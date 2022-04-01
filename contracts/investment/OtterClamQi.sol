@@ -28,31 +28,6 @@ abstract contract LockerOwned is OwnableUpgradeable {
     }
 }
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-interface EQi {
-    function userInfo(address user)
-        external
-        view
-        returns (uint256 amount, uint256 endBlock);
-
-    function enter(uint256 _amount, uint256 _blockNumber) external;
-
-    function leave() external;
-
-    function endBlock() external view returns (uint256);
-
-    function balanceOf(address user) external view returns (uint256);
-
-    function underlyingBalance(address user) external view returns (uint256);
-
-    function emergencyExit() external;
-}
-
-=======
->>>>>>> 4bab7d7 (auto-locker add interface)
->>>>>>> 8ec3a682634cd45db9b3eb9d2003e8d51012f7f3
 contract OtterClamQi is
     IOtterClamQi,
     ERC20Upgradeable,
@@ -64,7 +39,7 @@ contract OtterClamQi is
     event CollectReward(address indexed receipt, uint256 amount);
 
     IERC20 public qi;
-    EQi public eQi;
+    IEQi public eQi;
     address public dao;
     uint256 _maxLock;
     bool public burnEnabled;
@@ -77,7 +52,7 @@ contract OtterClamQi is
         __ERC20_init('OtterClam Qi', 'ocQi');
         __Ownable_init();
         qi = IERC20(qi_);
-        eQi = EQi(eQi_);
+        eQi = IEQi(eQi_);
         dao = dao_;
         _maxLock = 60108430;
         burnEnabled = false;

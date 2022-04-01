@@ -24,7 +24,6 @@ contract OtterQiLocker is LockerOwnedUpgradeable, UUPSUpgradeable {
     event ConvertToTetuQi(address token, uint256 amountIn, uint256 amountOut);
 
     IERC20 public qi;
-    EQi public eQi;
     IOtterClamQi public ocQi;
     IOtterTreasury public treasury;
     address public dao;
@@ -72,7 +71,7 @@ contract OtterQiLocker is LockerOwnedUpgradeable, UUPSUpgradeable {
     }
 
     /// @notice Harvest reward from QiDAO
-    /// @param blockNumber_ the block number going to locked, if = 0, no lock
+    /// @param relock_ the boolean showing to lock or not
     function harvest(bool relock_) external onlyLocker {
         uint256 rewards = ocQi.collectReward(address(treasury));
         if (relock_) {
